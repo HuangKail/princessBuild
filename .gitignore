@@ -1,0 +1,5 @@
+modules/
+output/
+static/
+template/
+build.sh

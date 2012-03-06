@@ -1,0 +1,123 @@
+bigpipeArray
+(
+    [0] => Module Object
+        (
+            [name] => fis
+            [requireList] => Array
+                (
+                )
+
+            [priority] => 1000
+        )
+
+    [1] => Module Object
+        (
+            [name] => tangram
+            [requireList] => Array
+                (
+                    [0] => Module Object
+                        (
+                            [name] => fis
+                            [requireList] => Array
+                                (
+                                )
+
+                            [priority] => 1000
+                        )
+
+                )
+
+            [priority] => 100
+        )
+
+    [2] => Module Object
+        (
+            [name] => base
+            [requireList] => Array
+                (
+                    [0] => Module Object
+                        (
+                            [name] => fis
+                            [requireList] => Array
+                                (
+                                )
+
+                            [priority] => 100
+                        )
+
+                    [1] => Module Object
+                        (
+                            [name] => tangram
+                            [requireList] => Array
+                                (
+                                    [0] => Module Object
+                                        (
+                                            [name] => fis
+                                            [requireList] => Array
+                                                (
+                                                )
+
+                                            [priority] => 1000
+                                        )
+
+                                )
+
+                            [priority] => 100
+                        )
+
+                )
+
+            [priority] => 10
+        )
+
+    [3] => Module Object
+        (
+            [name] => bigpipe
+            [requireList] => Array
+                (
+                    [0] => Module Object
+                        (
+                            [name] => base
+                            [requireList] => Array
+                                (
+                                    [0] => Module Object
+                                        (
+                                            [name] => fis
+                                            [requireList] => Array
+                                                (
+                                                )
+
+                                            [priority] => 100
+                                        )
+
+                                    [1] => Module Object
+                                        (
+                                            [name] => tangram
+                                            [requireList] => Array
+                                                (
+                                                    [0] => Module Object
+                                                        (
+                                                            [name] => fis
+                                                            [requireList] => Array
+                                                                (
+                                                                )
+
+                                                            [priority] => 1000
+                                                        )
+
+                                                )
+
+                                            [priority] => 100
+                                        )
+
+                                )
+
+                            [priority] => 10
+                        )
+
+                )
+
+            [priority] => 1
+        )
+
+)
