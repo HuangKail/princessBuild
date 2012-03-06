@@ -290,7 +290,7 @@ class PageDef {
         else {
             foreach($filenameList as $file){
                 $outputStr .= file_get_contents($file);
-                if($outputStr[strlen($outputStr) - 1] !== EOF){
+                if($outputStr[strlen($outputStr) - 1] !== ';'){
                     $outputStr .= ';';
                 }
             }
