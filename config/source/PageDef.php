@@ -74,27 +74,36 @@ class PageDef {
     public function process() {
         $this -> tokens['pageTitle'] = $this -> pageTitle;
         foreach ($this->pageHeadStyle as $resourceName) {
-            if (!isset($this -> tokens[$resourceName])) {
+            if (!isset($this -> tokens['pageHeadStyle'])) {
                 $this -> tokens['pageHeadStyle'] = $this -> processCss($resourceName);
             } else {
                 $this -> tokens['pageHeadStyle'] .= $this -> processCss($resourceName);
             }
         }
+        if(!isset($this -> tokens['pageHeadStyle'])){
+            $this -> tokens['pageHeadStyle'] = '';
+        }
 
         foreach ($this->pageHeadScript as $resourceName) {
-            if (!isset($this -> tokens[$resourceName])) {
+            if (!isset($this -> tokens['pageHeadScript'])) {
                 $this -> tokens['pageHeadScript'] = $this -> processJs($resourceName);
             } else {
                 $this -> tokens['pageHeadScript'] .= $this -> processJs($resourceName);
             }
         }
+        if(!isset($this -> tokens['pageHeadScript'])){
+            $this -> tokens['pageHeadScript'] = '';
+        }
 
         foreach ($this->pageFootScript as $resourceName) {
-            if (!isset($this -> tokens[$resourceName])) {
+            if (!isset($this -> tokens['pageFootScript'])) {
                 $this -> tokens['pageFootScript'] = $this -> processJs($resourceName);
             } else {
                 $this -> tokens['pageFootScript'] .= $this -> processJs($resourceName);
             }
+        }
+        if(!isset($this -> tokens['pageFootScript'])){
+            $this -> tokens['pageFootScript'] = '';
         }
 
         $this -> processTemplate();
@@ -109,7 +118,18 @@ class PageDef {
         $this -> moduleLoader -> resolveModule($this -> pageModule, &$moduleToBeLoaded);
         $this -> copyTemlpateFiles(&$moduleToBeLoaded);
     }
-
+    
+    private function replaceToken() {
+        $fileContent = file_get_contents("$this->modulePath/$this->pageModule/template/$this->pageModule.html");
+        foreach ($this->tokens as $key => $value) {
+            $fileContent = str_replace("<!--<#$key#>-->", $value, $fileContent);
+        }
+        file_put_contents("$this->templatePath/$this->pageName.html", $fileContent);
+    }
+    /*
+     * handle template
+     * 
+     */
     private function processTemplate() {
         $moduleToBeLoaded = array();
         foreach ($this->modulesTemplate as $moduleName) {
@@ -118,6 +138,22 @@ class PageDef {
         $this -> copyTemlpateFiles(&$moduleToBeLoaded);
     }
 
+    private function copyTemlpateFiles(&$modules) {
+        foreach ($modules as $module) {
+            if (in_array($module -> name, $this -> templateModuleLoaded)) {
+                continue;
+            }
+            if (is_dir("$this->modulePath/$module->name/template") && strlen(system("ls $this->modulePath/$module->name/template")) > 0) {
+                system("cp -r $this->modulePath/$module->name/template/* $this->templatePath/");
+            }
+            $this -> templateModuleLoaded[] = $module -> name;
+        }
+    }
+    
+    /*
+     * handle css
+     * 
+     */
     private function processCss($resouceName) {
         $moduleToBeLoaded = array();
         if (isset($this -> resouce['css'][$resouceName])) {
@@ -140,48 +176,7 @@ class PageDef {
         $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"&>";
         return $retStr;
     }
-
-    private function processJs($resouceName) {
-        $moduleToBeLoaded = array();
-        $type = $this -> resouce['js'][$resouceName]['type'];
-        $scriptContent = '';
-        if (isset($this -> resouce['js'][$resouceName]['modules'])) {
-            foreach ($this->resouce['js'][$resouceName]['modules'] as $moduleName) {
-                $this -> moduleLoader -> resolveModule($moduleName, &$moduleToBeLoaded);
-            }
-            $fileList = $this -> copyjsFiles(&$moduleToBeLoaded, $type == 'inline');
-            //
-            // file name is $resouceName and modules are in $moduleToBeLoaded
-            //
-            $content = $this -> createJsImportFile($resouceName, &$fileList, $type == 'inline');
-            if(!is_dir("$this->templatePath/inc/")){
-                system("mkdir $this->templatePath/inc/");
-            }
-            file_put_contents("$this->templatePath/inc/{$resouceName}.inc", $content);
-        } else {
-            echo "process Head ERROR! pageDefinition: $this->pageModule css: $resouceName does not exist";
-            die(1);
-        }
-        $temp = '';
-        if ($type == 'inline'){
-            $temp = 'inline';
-        }
-        $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"{$temp}&>";
-        return $retStr;
-    }
-
-    private function copyTemlpateFiles(&$modules) {
-        foreach ($modules as $module) {
-            if (in_array($module -> name, $this -> templateModuleLoaded)) {
-                continue;
-            }
-            if (is_dir("$this->modulePath/$module->name/template") && strlen(system("ls $this->modulePath/$module->name/template")) > 0) {
-                system("cp -r $this->modulePath/$module->name/template/* $this->templatePath/");
-            }
-            $this -> templateModuleLoaded[] = $module -> name;
-        }
-    }
-
+    
     private function & copyCssFiles(&$modules) {
         $dirObj;
         $fileList = array();
@@ -210,7 +205,55 @@ class PageDef {
         }
         return $fileList;
     }
+    
+    private function createCssImportFile($filename, &$filenameList) {
+        $outputStr = "";
+        foreach ($filenameList as $file) {
+            $outputStr .= "@import url(\"$file\");\n";
+        }
+        file_put_contents("{$this->staticPath}/css/{$filename}.css", $outputStr);
+        
+        $cssPath = $this -> cssPath;
+        if ($cssPath[strlen($cssPath) - 1] == '/') {
+            $cssPath = substr($cssPath, 0, strlen($cssPath) - 1);
+        }
+        $retStr = "<link type='text/css' rel='stylesheet' href='{$cssPath}/{$filename}.css?v=md5' />";
+        return $retStr;
+    }
 
+    /*
+     * hanlde js
+     * 
+     */
+    private function processJs($resouceName) {
+        $moduleToBeLoaded = array();
+        $type = $this -> resouce['js'][$resouceName]['type'];
+        $scriptContent = '';
+        if (isset($this -> resouce['js'][$resouceName]['modules'])) {
+            foreach ($this->resouce['js'][$resouceName]['modules'] as $moduleName) {
+                $this -> moduleLoader -> resolveModule($moduleName, &$moduleToBeLoaded);
+            }
+            $fileList = $this -> copyjsFiles(&$moduleToBeLoaded, $type == 'inline');
+            //
+            // file name is $resouceName and modules are in $moduleToBeLoaded
+            //
+            $content = $this -> createJsImportFile($resouceName, &$fileList, $type == 'inline');
+            if(!is_dir("$this->templatePath/inc/")){
+                system("mkdir $this->templatePath/inc/");
+            }
+            file_put_contents("$this->templatePath/inc/{$resouceName}.inc", $content);
+        } else {
+            echo "process Head ERROR! pageDefinition: $this->pageModule css: $resouceName does not exist";
+            die(1);
+        }
+        $temp = '';
+        if ($type == 'inline'){
+            $temp = 'inline';
+        }
+        $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"{$temp}&>";
+        return $retStr;
+    }    
+    
     private function & copyJsFiles(&$modules, $isInline) {
         $dirObj;
         $fileList = array();
@@ -231,7 +274,7 @@ class PageDef {
         }
         return $fileList;
     }
-
+    
     private function getJsFileList($dirPath, $moduleName, &$fileList, $isInline) {
         $dirObj = opendir($dirPath);
         while (($filename = readdir($dirObj)) !== FALSE) {
@@ -251,29 +294,6 @@ class PageDef {
             }
         }
         closedir($dirObj);
-    }
-
-    private function replaceToken() {
-        $fileContent = file_get_contents("$this->modulePath/$this->pageModule/template/$this->pageModule.html");
-        foreach ($this->tokens as $key => $value) {
-            $fileContent = str_replace("<!--<#$key#>-->", $value, $fileContent);
-        }
-        file_put_contents("$this->templatePath/$this->pageName.html", $fileContent);
-    }
-
-    private function createCssImportFile($filename, &$filenameList) {
-        $outputStr = "";
-        foreach ($filenameList as $file) {
-            $outputStr .= "@import url(\"$file\");\n";
-        }
-        file_put_contents("{$this->staticPath}/css/{$filename}.css", $outputStr);
-        
-        $cssPath = $this -> cssPath;
-        if ($cssPath[strlen($cssPath) - 1] == '/') {
-            $cssPath = substr($cssPath, 0, strlen($cssPath) - 1);
-        }
-        $retStr = "<link type='text/css' rel='stylesheet' href='{$cssPath}/{$filename}.css?v=md5' />";
-        return $retStr;
     }
 
     private function createJsImportFile($filename, &$filenameList, $isInline) {
@@ -311,6 +331,6 @@ class PageDef {
         file_put_contents("{$this->staticPath}/js/{$filename}.js", $outputStr);
         return $retStr;
     }
-
+    
 }
 ?>

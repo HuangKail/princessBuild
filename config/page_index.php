@@ -3,8 +3,8 @@
         'pageTemplate' => 'basicpage',
         'pageTitle' => 'testpage',
         'pageHeadStyle' => array('princess'),
-        'pageHeadScript' => array('index_boot_inline'),
-        'pageFootScript' => array('index_boot'),
+        'pageHeadScript' => array('index_boot', 'index_boot_inline',),
+        'pageFootScript' => array(),
         'modulesTemplate' => array('layout', 'album_min', 'basic_info'),
         'resouce' => array(
             'js' => array(

@@ -4,3 +4,4 @@ static/
 template/
 build.sh
 clear.sh
+config.php
