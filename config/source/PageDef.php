@@ -128,21 +128,23 @@ class PageDef {
             //
             // file name is $resouceName and modules are in $moduleToBeLoaded
             //
-            $this -> createCssImportFile("$this->staticPath/css/{$resouceName}.css", &$fileList);
+            $content = $this -> createCssImportFile($resouceName, &$fileList);
+            if(!is_dir("$this->templatePath/inc/")){
+                system("mkdir $this->templatePath/inc/");
+            }
+            file_put_contents("$this->templatePath/inc/{$resouceName}.inc", $content);
         } else {
             echo "process Head ERROR! pageDefinition: $this->pageModule css: $resouceName does not exist";
             die(1);
         }
-        $cssPath = $this -> cssPath;
-        if ($cssPath[strlen($cssPath) - 1] == '/') {
-            $cssPath = substr($cssPath, 0, strlen($cssPath) - 1);
-        }
-        return "<link type='text/css' rel='stylesheet' href='$cssPath/{$resouceName}.css?v=md5' />";
+        $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"&>";
+        return $retStr;
     }
 
     private function processJs($resouceName) {
         $moduleToBeLoaded = array();
         $type = $this -> resouce['js'][$resouceName]['type'];
+        $scriptContent = '';
         if (isset($this -> resouce['js'][$resouceName]['modules'])) {
             foreach ($this->resouce['js'][$resouceName]['modules'] as $moduleName) {
                 $this -> moduleLoader -> resolveModule($moduleName, &$moduleToBeLoaded);
@@ -151,21 +153,20 @@ class PageDef {
             //
             // file name is $resouceName and modules are in $moduleToBeLoaded
             //
-            $this -> createJsImportFile("$this->staticPath/js/{$resouceName}.js", &$fileList, $type == 'inline');
+            $content = $this -> createJsImportFile($resouceName, &$fileList, $type == 'inline');
+            if(!is_dir("$this->templatePath/inc/")){
+                system("mkdir $this->templatePath/inc/");
+            }
+            file_put_contents("$this->templatePath/inc/{$resouceName}.inc", $content);
         } else {
             echo "process Head ERROR! pageDefinition: $this->pageModule css: $resouceName does not exist";
             die(1);
         }
-        $jsPath = $this -> jsPath;
-        if ($jsPath[strlen($jsPath) - 1] == '/') {
-            $jsPath = substr($jsPath, 0, strlen($jsPath) - 1);
+        $temp = '';
+        if ($type == 'inline'){
+            $temp = 'inline';
         }
-        $retStr = '';
-        if ($type == 'ext') {
-            $retStr = "<script type='text/javascript' src='$jsPath/{$resouceName}.js?v=md5'></script>";
-        } else if ($type == 'inline') {
-            $retStr = "<script type='text/javascript' src='$jsPath/{$resouceName}.js?v=md5' InlineContent></script>";
-        }
+        $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"{$temp}&>";
         return $retStr;
     }
 
@@ -220,7 +221,7 @@ class PageDef {
             if (!is_dir("$this->staticPath/js")) {
                 system("mkdir $this->staticPath/js");
             }
-            $this -> getJsFileList("$this->modulePath/$module->name/static/js", $module -> name, &$fileList, $isInline);
+            $this -> getJsFileList("$this->modulePath/{$module->name}/static/js", $module -> name, &$fileList, $isInline);
             $temp = '';
             if (strlen($temp = system("ls $this->modulePath/{$module -> name}/static/js/")) > 0) {
                 system("mkdir $this->staticPath/js/{$module -> name}");
@@ -254,19 +255,9 @@ class PageDef {
 
     private function replaceToken() {
         $fileContent = file_get_contents("$this->modulePath/$this->pageModule/template/$this->pageModule.html");
-        if(!is_dir("$this->templatePath/inc/")){
-            system("mkdir $this->templatePath/inc/");
-        }
         foreach ($this->tokens as $key => $value) {
-            $temp = '';
-            file_put_contents("$this->templatePath/inc/{$key}.inc", $value);
-            if(strpos($value, "InlineContent>")){
-                $temp = ' inline';
-            }
-            // notice $temp to indicate that the file is inline.
-            $fileContent = str_replace("<!--<#$key#>-->", "<&include file=\"princess/inc/{$key}.inc\"{$temp}&>", $fileContent);
+            $fileContent = str_replace("<!--<#$key#>-->", $value, $fileContent);
         }
-
         file_put_contents("$this->templatePath/$this->pageName.html", $fileContent);
     }
 
@@ -275,7 +266,14 @@ class PageDef {
         foreach ($filenameList as $file) {
             $outputStr .= "@import url(\"$file\");\n";
         }
-        file_put_contents($filename, $outputStr);
+        file_put_contents("{$this->staticPath}/css/{$filename}.css", $outputStr);
+        
+        $cssPath = $this -> cssPath;
+        if ($cssPath[strlen($cssPath) - 1] == '/') {
+            $cssPath = substr($cssPath, 0, strlen($cssPath) - 1);
+        }
+        $retStr = "<link type='text/css' rel='stylesheet' href='{$cssPath}/{$filename}.css?v=md5' />";
+        return $retStr;
     }
 
     private function createJsImportFile($filename, &$filenameList, $isInline) {
@@ -290,12 +288,28 @@ class PageDef {
         else {
             foreach($filenameList as $file){
                 $outputStr .= file_get_contents($file);
-                if($outputStr[strlen($outputStr) - 1] !== ';'){
+                $i = 1;
+                $lastWord = $outputStr[strlen($outputStr) - $i];
+                while($lastWord == EOF || $lastWord == "\n" || $lastWord == "\t" || $lastWord == ' '){
+                    $lastWord = $outputStr[strlen($outputStr) - $i++];
+                }
+                if($lastWord !== ';' && $lastWord !== '}'){
                     $outputStr .= ';';
                 }
             }
         }
-        file_put_contents($filename, $outputStr);
+        $jsPath = $this -> jsPath;
+        if ($jsPath[strlen($jsPath) - 1] == '/') {
+            $jsPath = substr($jsPath, 0, strlen($jsPath) - 1);
+        }
+        $retStr = '';
+        if (!$isInline) {
+            $retStr = "<script type='text/javascript' src='$jsPath/{$filename}.js?v=md5'></script>";
+        } else {
+            $retStr = "<script type='text/javascript' src='$jsPath/{$filename}.js?v=md5' InlineContent></script>";
+        }
+        file_put_contents("{$this->staticPath}/js/{$filename}.js", $outputStr);
+        return $retStr;
     }
 
 }
