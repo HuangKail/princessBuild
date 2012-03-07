@@ -1,16 +1,9 @@
 <?php
 include_once ("ModuleLoader.php");
-class PageDef {
-    // array
-    var $pageHeadScript;
-    // array
-    var $pageHeadStyle;
-    // array
-    var $pageFootScript;
-    // str
-    var $pageTitle;
-    // array
-    var $resouce;
+class PageDef {  
+    //array
+    var $tokensToBeReplaced, $modulesToBeLoaded, $resouce;
+    
     // str
     var $pageModule;
     // array
@@ -52,11 +45,19 @@ class PageDef {
             echo "error: there is no page module file $this->pageModule\n";
             die(1);
         }
-
-        $this -> pageTitle = $pageArr['pageTitle'];
-        $this -> pageHeadScript = $pageArr['pageHeadScript'];
-        $this -> pageHeadStyle = $pageArr['pageHeadStyle'];
-        $this -> pageFootScript = $pageArr['pageFootScript'];
+        
+        $matchs = $this -> analyzePageTemplate("{$modulePath}/{$this->pageModule}/template/$this->pageModule.html");
+        
+        $this -> tokensToBeReplaced = array();
+        $this -> tokensToBeReplaced['token'] = $matchs[0];
+        $this -> tokensToBeReplaced['key'] = $matchs[1];
+        $this -> tokensToBeReplaced['type'] = $matchs[2];
+        
+        $this -> modulesToBeLoaded = array();
+        foreach($this-> tokensToBeReplaced['key'] as $key){
+            $this -> modulesToBeLoaded[$key] = $pageArr[$key];
+        }
+        
         $this -> resouce = $pageArr['resouce'];
         $this -> modulesTemplate = $pageArr['modulesTemplate'];
         $this -> cssPath = $pageArr['cssPath'];
@@ -64,6 +65,8 @@ class PageDef {
 
         // init loader
         $this -> moduleLoader = new ModuleLoader($modulePath, $staticPath, $templatePath);
+        
+        // avoiding duplicated loading
         $this -> cssModuleLoaded = array();
         $this -> templateModuleLoaded = array();
         $this -> jsModuleLoaded = array();
@@ -71,42 +74,86 @@ class PageDef {
 
     }
 
+    private function & analyzePageTemplate($filename){
+        $file = file_get_contents($filename);
+        $contentPatternStr = '/<!--<#(\w+):(\w+)#>-->/';
+        $matchs;
+        preg_match_all($contentPatternStr, $file, &$matchs);
+        /*
+         * return sample:
+         * Array(
+                    [0] => Array
+                        (
+                            [0] => <!--<#pageTitle:str#>-->
+                            [1] => <!--<#pageHeadStyle:style#>-->
+                            [2] => <!--<#pageHeadScript:script#>-->
+                            [3] => <!--<#pageFootScript:script#>-->
+                        )
+                
+                    [1] => Array
+                        (
+                            [0] => pageTitle
+                            [1] => pageHeadStyle
+                            [2] => pageHeadScript
+                            [3] => pageFootScript
+                        )
+                
+                    [2] => Array
+                        (
+                            [0] => str
+                            [1] => style
+                            [2] => script
+                            [3] => script
+                        )
+                )
+         */
+        return $matchs;
+    }
+
     public function process() {
-        $this -> tokens['pageTitle'] = $this -> pageTitle;
-        foreach ($this->pageHeadStyle as $resourceName) {
-            if (!isset($this -> tokens['pageHeadStyle'])) {
-                $this -> tokens['pageHeadStyle'] = $this -> processCss($resourceName);
-            } else {
-                $this -> tokens['pageHeadStyle'] .= $this -> processCss($resourceName);
+        
+        for($i = 0,$len = count($this->tokensToBeReplaced['key']); $i < $len; $i++){
+            $key = $this->tokensToBeReplaced['key'][$i];
+            $type = $this->tokensToBeReplaced['type'][$i];
+            //
+            // TODO: refactor it by using the call_user_func
+            //
+            switch ($type) {
+                case 'str':
+                    $this -> tokens[$key] = $this -> modulesToBeLoaded[$key];
+                    break;
+                case 'css':{
+                    foreach ($this->modulesToBeLoaded[$key] as $resourceName){
+                        if (!isset($this -> tokens[$key])) {
+                            $this -> tokens[$key] = $this -> processCss($resourceName);
+                        } else {
+                            $this -> tokens[$key] .= $this -> processCss($resourceName);
+                        }
+                    }
+                }
+                    break;
+                case 'js':{
+                    foreach ($this->modulesToBeLoaded[$key] as $resourceName) {
+                        if (!isset($this -> tokens[$key])) {
+                            $this -> tokens[$key] = $this -> processJs($resourceName);
+                        } else {
+                            $this -> tokens[$key] .= $this -> processJs($resourceName);
+                        }
+                    }
+                }
+                    break;
+                case 'tpl':{
+                    foreach ($this->modulesToBeLoaded[$key] as $resourceName){
+                        if (!isset($this -> tokens[$key])) {
+                            $this -> tokens[$key] = $this -> processTemplate($resourceName);
+                        } else {
+                            $this -> tokens[$key] .= $this -> processTemplate($resourceName);
+                        }
+                    }
+                }
+                    break;
             }
         }
-        if(!isset($this -> tokens['pageHeadStyle'])){
-            $this -> tokens['pageHeadStyle'] = '';
-        }
-
-        foreach ($this->pageHeadScript as $resourceName) {
-            if (!isset($this -> tokens['pageHeadScript'])) {
-                $this -> tokens['pageHeadScript'] = $this -> processJs($resourceName);
-            } else {
-                $this -> tokens['pageHeadScript'] .= $this -> processJs($resourceName);
-            }
-        }
-        if(!isset($this -> tokens['pageHeadScript'])){
-            $this -> tokens['pageHeadScript'] = '';
-        }
-
-        foreach ($this->pageFootScript as $resourceName) {
-            if (!isset($this -> tokens['pageFootScript'])) {
-                $this -> tokens['pageFootScript'] = $this -> processJs($resourceName);
-            } else {
-                $this -> tokens['pageFootScript'] .= $this -> processJs($resourceName);
-            }
-        }
-        if(!isset($this -> tokens['pageFootScript'])){
-            $this -> tokens['pageFootScript'] = '';
-        }
-
-        $this -> processTemplate();
 
         $this -> processPage();
 
@@ -121,8 +168,14 @@ class PageDef {
     
     private function replaceToken() {
         $fileContent = file_get_contents("$this->modulePath/$this->pageModule/template/$this->pageModule.html");
-        foreach ($this->tokens as $key => $value) {
-            $fileContent = str_replace("<!--<#$key#>-->", $value, $fileContent);
+        
+        for($i=0, $len = count($this-> tokensToBeReplaced['key']); $i < $len; $i++){
+            $value = '';
+            $key = $this-> tokensToBeReplaced['key'][$i];
+            if(isset($this->tokens[$key])){
+                $value = $this->tokens[$key];
+            }
+            $fileContent = str_replace($this-> tokensToBeReplaced['token'][$i], $value, $fileContent);
         }
         file_put_contents("$this->templatePath/$this->pageName.html", $fileContent);
     }
@@ -130,12 +183,17 @@ class PageDef {
      * handle template
      * 
      */
-    private function processTemplate() {
+    private function processTemplate($resouceName) {
         $moduleToBeLoaded = array();
-        foreach ($this->modulesTemplate as $moduleName) {
-            $this -> moduleLoader -> resolveModule($moduleName, &$moduleToBeLoaded);
-        }
+        $this -> moduleLoader -> resolveModule($resouceName, &$moduleToBeLoaded);
         $this -> copyTemlpateFiles(&$moduleToBeLoaded);
+        
+        $retStr = '';
+        $filename = "{$this->modulePath}/{$resouceName}/template/{$resouceName}.html";
+        if(is_file($filename)){
+            $retStr = file_get_contents($filename);
+        }
+        return $retStr;
     }
 
     private function copyTemlpateFiles(&$modules) {
@@ -248,7 +306,7 @@ class PageDef {
         }
         $temp = '';
         if ($type == 'inline'){
-            $temp = 'inline';
+            $temp = ' inline';
         }
         $retStr = "<&include file=\"princess/inc/{$resouceName}.inc\"{$temp}&>";
         return $retStr;
