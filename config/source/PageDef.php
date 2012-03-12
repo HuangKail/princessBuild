@@ -118,12 +118,16 @@ class PageDef {
             //
             // TODO: refactor it by using the call_user_func
             //
+            $moduleToBeLoaded = $this -> modulesToBeLoaded[$key];
+            if(count($moduleToBeLoaded) == 0){
+                continue;
+            }
             switch ($type) {
                 case 'str':
-                    $this -> tokens[$key] = $this -> modulesToBeLoaded[$key];
+                    $this -> tokens[$key] = $moduleToBeLoaded;
                     break;
                 case 'css':{
-                    foreach ($this->modulesToBeLoaded[$key] as $resourceName){
+                    foreach ($moduleToBeLoaded as $resourceName){
                         if (!isset($this -> tokens[$key])) {
                             $this -> tokens[$key] = $this -> processCss($resourceName);
                         } else {
@@ -133,7 +137,7 @@ class PageDef {
                 }
                     break;
                 case 'js':{
-                    foreach ($this->modulesToBeLoaded[$key] as $resourceName) {
+                    foreach ($moduleToBeLoaded as $resourceName) {
                         if (!isset($this -> tokens[$key])) {
                             $this -> tokens[$key] = $this -> processJs($resourceName);
                         } else {
@@ -143,7 +147,7 @@ class PageDef {
                 }
                     break;
                 case 'tpl':{
-                    foreach ($this->modulesToBeLoaded[$key] as $resourceName){
+                    foreach ($moduleToBeLoaded as $resourceName){
                         if (!isset($this -> tokens[$key])) {
                             $this -> tokens[$key] = $this -> processTemplate($resourceName);
                         } else {
@@ -368,7 +372,7 @@ class PageDef {
                 $outputStr .= file_get_contents($file);
                 $i = 1;
                 $lastWord = $outputStr[strlen($outputStr) - $i];
-                while($lastWord == EOF || $lastWord == "\n" || $lastWord == "\t" || $lastWord == ' '){
+                while($lastWord == "\n" || $lastWord == "\t" || $lastWord == ' '){
                     $lastWord = $outputStr[strlen($outputStr) - $i++];
                 }
                 if($lastWord !== ';' && $lastWord !== '}'){
